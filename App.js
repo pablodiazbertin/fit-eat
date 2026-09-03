@@ -1,13 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Utensils, Activity, Plus, Target, RefreshCw, Send, CheckSquare, Edit2, Calendar, Key, Settings, Trash2 } from 'lucide-react';
-import { GoogleGenAI } from '@google/genai';
+import { Users, Utensils, Activity, Plus, Target, RefreshCw, Send, CheckSquare, Edit2, Calendar, Key, Settings } from 'lucide-react';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
 export default function App() {
-  // --- ÉTATS & CONFIGURATION ---
   const [apiKey, setApiKey] = useState(localStorage.getItem('gemini_api_key') || '');
   const [showSettings, setShowSettings] = useState(!localStorage.getItem('gemini_api_key'));
 
-  // Profil et Objectifs
   const [profile, setProfile] = useState(() => {
     const saved = localStorage.getItem('fit_feast_profile');
     return saved ? JSON.parse(saved) : {
@@ -20,7 +18,7 @@ export default function App() {
       },
       familyMembers: [
         { id: 1, name: "Lucas", role: "Enfant", age: 4, goal: "Croissance", notes: "Pas d'épices, couper fin" },
-        { id: 2, name: "Sophie", role: "Conjointe", age: 34, goal: "Maintien de forme", notes: "Aucune restriction" }
+        { id: 2, name: "Sophie", role: "Conjoint", age: 34, goal: "Maintien de forme", notes: "Aucune restriction" }
       ]
     };
   });
@@ -28,19 +26,16 @@ export default function App() {
   const [isEditingGoal, setIsEditingGoal] = useState(false);
   const [tempGoal, setTempGoal] = useState({ ...profile.goal });
 
-  // Stocks & Activités
   const [inventoryText, setInventoryText] = useState("Œufs, Riz, Pâtes, Poulet, Brocolis, Saumon, Pommes de terre");
-  const [sportsHistory, setSportsHistory] = useState([
+  const [sportsHistory] = useState([
     { id: 1, date: "Hier", type: "Corde à sauter", duration: "20 min", details: "Corde lourde 500g" }
   ]);
 
-  // Planification générée & Interaction
   const [weeklyPlan, setWeeklyPlan] = useState(null);
   const [loading, setLoading] = useState(false);
   const [chatPrompt, setChatPrompt] = useState("");
   const [statusMessage, setStatusMessage] = useState("");
 
-  // Sauvegarde automatique du profil dans le navigateur
   useEffect(() => {
     localStorage.setItem('fit_feast_profile', JSON.stringify(profile));
   }, [profile]);
@@ -51,7 +46,6 @@ export default function App() {
     setShowSettings(false);
   };
 
-  // --- LOGIQUE DE GENERATION PAR IA (GEMINI) ---
   const generateOrUpdatePlan = async (customPrompt = "") => {
     if (!apiKey) {
       alert("Veuillez saisir votre clé API Google Gemini dans les paramètres.");
@@ -63,11 +57,12 @@ export default function App() {
     setStatusMessage("Génération du plan personnalisé en cours...");
 
     try {
-      const ai = new GoogleGenAI({ apiKey });
+      const genAI = new GoogleGenerativeAI(apiKey);
+      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
       const promptSystem = `
 Tu es un coach expert en nutrition sportive et organisation familiale.
-Génère un plan de repas et de sport cohérent pour la semaine.
+Génère un plan de repas et de sport cohérent.
 
 PROFIL UTILISATEUR :
 - Nom : ${profile.name}
@@ -91,7 +86,7 @@ CONSIGNES STRICTES :
 2. BASE COMMUNE FAMILIALE : Propose UN SEUL plat de base pour tout le foyer avec des ajustements précis pour chaque membre.
 3. UTILISATION DES STOCKS : Priorise les aliments en stock.
 
-Formate ta réponse en JSON JSON STRICT avec la structure exacte suivante (ne rajoute pas de texte hors JSON) :
+Formate ta réponse en JSON STRICT avec la structure exacte suivante (ne rajoute aucun texte avant ou après le JSON) :
 {
   "summary": "Résumé de l'orientation du plan",
   "days": [
@@ -111,12 +106,10 @@ Formate ta réponse en JSON JSON STRICT avec la structure exacte suivante (ne ra
 }
       `;
 
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: promptSystem
-      });
+      const result = await model.generateContent(promptSystem);
+      const responseText = result.response.text();
 
-      const cleanText = response.text.replace(/```json/g, '').replace(/```/g, '').trim();
+      const cleanText = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
       const resultData = JSON.parse(cleanText);
       
       setWeeklyPlan(resultData);
@@ -143,8 +136,6 @@ Formate ta réponse en JSON JSON STRICT avec la structure exacte suivante (ne ra
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 p-4 md:p-8">
-      
-      {/* BARRE DE NAVIGATION ET CONFIGURATION */}
       <header className="max-w-6xl mx-auto mb-6 flex justify-between items-center bg-white p-5 rounded-2xl shadow-sm border border-slate-100">
         <div className="flex items-center gap-3">
           <div className="bg-emerald-500 text-white p-2.5 rounded-xl">
@@ -164,14 +155,13 @@ Formate ta réponse en JSON JSON STRICT avec la structure exacte suivante (ne ra
         </button>
       </header>
 
-      {/* MODAL CONFIGURATION CLE API */}
       {showSettings && (
         <div className="max-w-6xl mx-auto mb-6 p-4 bg-amber-50 border border-amber-200 rounded-2xl text-xs space-y-3">
           <div className="flex items-center gap-2 text-amber-800 font-bold">
             <Key size={16} /> Configuration de l'accès Google Gemini AI (Gratuit)
           </div>
           <p className="text-amber-700">
-            Obtenez votre clé gratuite sur <a href="https://aistudio.google.com/" target="_blank" rel="noreferrer" className="underline font-bold">Google AI Studio</a> et collez-la ci-dessous pour activer le coach.
+            Obtenez votre clé gratuite sur <a href="https://aistudio.google.com/" target="_blank" rel="noreferrer" className="underline font-bold">Google AI Studio</a> et collez-la ci-dessous.
           </p>
           <div className="flex gap-2">
             <input 
@@ -191,13 +181,8 @@ Formate ta réponse en JSON JSON STRICT avec la structure exacte suivante (ne ra
         </div>
       )}
 
-      {/* CONTENU PRINCIPAL */}
       <main className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6">
-        
-        {/* COLONNE 1 : OBJECTIFS & FAMILLE */}
         <section className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 space-y-6">
-          
-          {/* OBJECTIFS */}
           <div className="space-y-3">
             <div className="flex justify-between items-center">
               <h2 className="text-sm font-bold flex items-center gap-2 text-slate-900">
@@ -251,7 +236,6 @@ Formate ta réponse en JSON JSON STRICT avec la structure exacte suivante (ne ra
             )}
           </div>
 
-          {/* FAMILLE */}
           <div className="space-y-3 pt-4 border-t border-slate-100">
             <h2 className="text-sm font-bold flex items-center gap-2 text-slate-900">
               <Users className="text-indigo-500" size={16} /> Composition Familiale
@@ -268,7 +252,6 @@ Formate ta réponse en JSON JSON STRICT avec la structure exacte suivante (ne ra
             ))}
           </div>
 
-          {/* STOCKS */}
           <div className="space-y-2 pt-4 border-t border-slate-100">
             <h3 className="text-xs font-bold uppercase text-slate-400 flex items-center gap-1">
               <CheckSquare size={14} className="text-amber-500" /> Stocks d'aliments
@@ -280,19 +263,15 @@ Formate ta réponse en JSON JSON STRICT avec la structure exacte suivante (ne ra
               onChange={(e) => setInventoryText(e.target.value)}
             />
           </div>
-
         </section>
 
-        {/* COLONNE 2 & 3 : COACH CONVERSATIONNEL & RESULTATS */}
         <section className="md:col-span-2 space-y-6">
-          
-          {/* BOITE DE DIALOGUE AVEC L'IA */}
           <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 space-y-4">
             <h2 className="text-md font-bold flex items-center gap-2 text-slate-900">
               <RefreshCw className="text-emerald-500" size={18} /> Ajustement Conversationnel
             </h2>
             <p className="text-xs text-slate-500">
-              Demandez une modification ponctuelle, signalez un ingrédient manquant ou une séance de sport supplémentaire.
+              Demandez une modification ponctuelle, signalez un ingrédient manquant ou une séance supplémentaire.
             </p>
 
             <div className="flex gap-2">
@@ -314,7 +293,6 @@ Formate ta réponse en JSON JSON STRICT avec la structure exacte suivante (ne ra
             {statusMessage && <p className="text-xs text-emerald-600 font-medium">{statusMessage}</p>}
           </div>
 
-          {/* AFFICHAGE DU PLAN GENERÉ PAR GEMINI */}
           {weeklyPlan ? (
             <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 space-y-6">
               <div className="p-3 bg-emerald-50 border border-emerald-100 rounded-xl text-xs text-emerald-900">
@@ -325,7 +303,6 @@ Formate ta réponse en JSON JSON STRICT avec la structure exacte suivante (ne ra
                 <div key={idx} className="space-y-4 border-b border-slate-100 pb-4 last:border-0">
                   <h3 className="font-bold text-slate-800 text-sm">{item.day}</h3>
 
-                  {/* PROPOSITION SPORT */}
                   <div className="p-3 bg-orange-50/60 border border-orange-100 rounded-xl flex justify-between items-center text-xs">
                     <div>
                       <span className="font-bold text-orange-600 uppercase text-[10px]">Séance Sport</span>
@@ -337,7 +314,6 @@ Formate ta réponse en JSON JSON STRICT avec la structure exacte suivante (ne ra
                     </span>
                   </div>
 
-                  {/* PROPOSITION REPAS ET DECLINAISON */}
                   <div className="p-3 bg-slate-50 rounded-xl space-y-2 text-xs">
                     <div className="font-bold text-slate-800">Repas : {item.meal.name}</div>
                     <p className="text-slate-600"><strong>Votre portion :</strong> {item.meal.userPortion}</p>
@@ -354,7 +330,6 @@ Formate ta réponse en JSON JSON STRICT avec la structure exacte suivante (ne ra
                 </div>
               ))}
 
-              {/* LISTE DE COURSES PROPOSÉE */}
               {weeklyPlan.groceryList && (
                 <div className="pt-2">
                   <h4 className="font-bold text-xs uppercase text-slate-400 mb-2">Liste de courses suggérée</h4>
@@ -375,7 +350,6 @@ Formate ta réponse en JSON JSON STRICT avec la structure exacte suivante (ne ra
               <p className="text-xs text-slate-400">Cliquez sur "Adapter" ci-dessus pour lancer la première planification par l'IA.</p>
             </div>
           )}
-
         </section>
       </main>
     </div>
