@@ -125,7 +125,7 @@ Formate ta réponse STRICTEMENT sous cette structure JSON :
       setStatusMessage("Plan Sport & Nutrition généré avec succès !");
     } catch (error) {
       console.error(error);
-      alert("Erreur de connexion avec Gemini : vérifiez votre clé API ou réessayez dans quelques secondes.");
+      alert("Erreur de connexion avec Gemini : vérifiez votre clé API ou le modèle.");
     } finally {
       setLoading(false);
     }
