@@ -73,7 +73,7 @@ PROFIL UTILISATEUR :
 - Régime : ${profile.goal.dietType}
 
 COMPOSITION FAMILIALE :
-${profile.familyMembers.map(m => `- ${m.name} (${m.role}, ${m.age} ans) : Notes = ${m.notes}`).join('\n')}
+${profile.familyMembers.map(m => `- ${m.name} (${m.role}, ${m.age} ans) : Notes =${m.notes}`).join('\n')}
 
 STOCKS D'ALIMENTS DISPONIBLES :
 ${inventoryText}
@@ -115,7 +115,10 @@ Formate ta réponse sous forme de JSON STRICT UNIQUEMENT (aucun texte ou balise 
       `;
 
       const result = await model.generateContent(promptSystem);
-      const responseText = result.response.text();
+      let responseText = result.response.text();
 
-      // Nettoyage de la réponse au cas où des balises markdown entourent le JSON
-      const cleanText = responseText.replace(/```json/gi, '').replace(/
+      // Nettoyage sécurisé sans expression régulière problématique
+      if (responseText.includes('```json')) {
+        responseText = responseText.split('```json')[1].split('```')[0];
+      } else if (responseText.includes('```')) {
+        responseText = responseText.split('
