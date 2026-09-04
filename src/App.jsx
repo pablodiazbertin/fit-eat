@@ -60,8 +60,10 @@ export default function App() {
 
     try {
       const genAI = new GoogleGenerativeAI(activeKey);
+      
+      // Utilisation du modèle actif gemini-3.6-flash recommandé par Google
       const model = genAI.getGenerativeModel({ 
-        model: "gemini-2.5-flash",
+        model: "gemini-3.6-flash",
         generationConfig: { responseMimeType: "application/json" }
       });
 
@@ -125,7 +127,7 @@ Formate ta réponse STRICTEMENT sous cette structure JSON :
       setStatusMessage("Plan Sport & Nutrition généré avec succès !");
     } catch (error) {
       console.error(error);
-      alert("Erreur de connexion avec Gemini : vérifiez votre clé API ou le modèle.");
+      alert("Erreur de connexion avec Gemini : vérifiez votre clé API.");
     } finally {
       setLoading(false);
     }
@@ -195,7 +197,7 @@ Formate ta réponse STRICTEMENT sous cette structure JSON :
       {/* CONTENU PRINCIPAL */}
       <main className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6">
         
-        {/* PANNEAU DE GAUCHE : OBJECTIFS, FAMILLE & STOCKS */}
+        {/* PANNEAU DE GAUCHE */}
         <section className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 space-y-6">
           
           {/* OBJECTIF */}
