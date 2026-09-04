@@ -4,8 +4,8 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
  * Service d'appel à l'API Google Gemini 3.6-flash
  */
 export const generateWeeklyPlan = async ({ apiKey, family, goals, inventory, sportCatalog, chatInput, mealPhoto }) => {
-  if (!apiKey) {
-    throw new Error("Clé API manquante");
+  if (!apiKey || !apiKey.trim()) {
+    throw new Error("Clé API manquante ou invalide");
   }
 
   const genAI = new GoogleGenerativeAI(apiKey.trim());
@@ -19,19 +19,23 @@ Tu es un coach expert en nutrition, entraînement physique et organisation famil
 Génère ou adapte le programme complet de la semaine.
 
 FAMILLE & MEMBRES :
-${family.map(m => `- ${m.name} (${m.role}, ${m.age} ans) | Objectif: ${goals[m.id]?.type || 'N/A'} (${goals[m.id]?.target || ''}) | Notes: ${m.notes}`).join('\n')}
+${family && family.length > 0 
+  ? family.map(m => `- ${m.name} (${m.role}, ${m.age} ans) \vert{} Objectif:${goals[m.id]?.type || 'N/A'} (${goals[m.id]?.target \vert{}\vert{} ''}) \vert{} Notes:${m.notes || ''}`).join('\n')
+  : 'Aucun membre renseigné'}
 
 STOCKS D'ALIMENTS DISPONIBLES :
-${inventory}
+${inventory || 'Aucun stock renseigné'}
 
 CATALOGUE DE SPORTS DISPONIBLES :
-${sportCatalog.map(s => `- ${s.name} (${s.category}, ${s.defaultDuration}) : ${s.notes}`).join('\n')}
+${sportCatalog && sportCatalog.length > 0 
+  ? sportCatalog.map(s => `- ${s.name} (${s.category}, ${s.defaultDuration}) :${s.notes || ''}`).join('\n')
+  : 'Aucun sport renseigné'}
 
 INSTRUCTIONS UTILISATEUR :
 ${chatInput ? chatInput : "Génère le programme de la semaine."}
 ${mealPhoto ? "NOTE: Une photo de repas consommé a été envoyée. Adapte les repas suivants." : ""}
 
-Formate STRICTEMENT en JSON :
+Formate ta réponse STRICTEMENT sous cette structure JSON :
 {
   "summary": "Synthèse de la stratégie globale",
   "days": [
@@ -60,6 +64,13 @@ Formate STRICTEMENT en JSON :
     result = await model.generateContent(promptSystem);
   }
 
-  const responseText = result.response.text();
-  return JSON.parse(responseText.trim());
+  const responseText = await result.response.text();
+  
+  // Nettoyage de sécurité au cas où des balises markdown entourent le JSON
+  let cleanText = responseText.trim();
+  if (cleanText.startsWith("```")) {
+    cleanText = cleanText.replace(/^```json/i, "").replace(/^```/, "").replace(/```$/, "").trim();
+  }
+
+  return JSON.parse(cleanText);
 };
