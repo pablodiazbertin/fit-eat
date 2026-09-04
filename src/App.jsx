@@ -1,17 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Users, Utensils, Target, CheckSquare, Settings, Dumbbell, 
-  ShoppingCart, Camera, Plus, Trash2, Edit3, Send, Key, RefreshCw, Layers
+  ShoppingCart, Camera, Plus, Trash2, Send, Key, RefreshCw, Layers
 } from 'lucide-react';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 export default function App() {
-  // --- ÉTAT GLOBAL ---
   const [activeTab, setActiveTab] = useState('meals');
   const [apiKey, setApiKey] = useState(localStorage.getItem('gemini_api_key') || '');
   const [showSettings, setShowSettings] = useState(!localStorage.getItem('gemini_api_key'));
 
-  // 1. MODULE FAMILLE
   const [family, setFamily] = useState(() => {
     try {
       const saved = localStorage.getItem('fe_family');
@@ -25,7 +23,6 @@ export default function App() {
     }
   });
 
-  // 2. MODULE OBJECTIFS
   const [goals, setGoals] = useState(() => {
     try {
       const saved = localStorage.getItem('fe_goals');
@@ -39,12 +36,10 @@ export default function App() {
     }
   });
 
-  // 3. MODULE STOCKS (Texte brut, SANS JSON.parse)
   const [inventory, setInventory] = useState(() => {
     return localStorage.getItem('fe_inventory') || "Œufs, Riz, Pâtes, Poulet, Brocolis, Saumon, Haricots verts";
   });
 
-  // 4. MODULE SPORTS
   const [sportCatalog, setSportCatalog] = useState(() => {
     try {
       const saved = localStorage.getItem('fe_sports');
@@ -58,7 +53,6 @@ export default function App() {
     }
   });
 
-  // 5. MODULE PLANNING
   const [weeklyPlan, setWeeklyPlan] = useState(() => {
     try {
       const saved = localStorage.getItem('fe_plan');
@@ -72,7 +66,6 @@ export default function App() {
   const [chatInput, setChatInput] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // Sauvegardes
   useEffect(() => { localStorage.setItem('fe_family', JSON.stringify(family)); }, [family]);
   useEffect(() => { localStorage.setItem('fe_goals', JSON.stringify(goals)); }, [goals]);
   useEffect(() => { localStorage.setItem('fe_inventory', inventory); }, [inventory]);
@@ -120,7 +113,6 @@ export default function App() {
     }
   };
 
-  // APPEL IA GEMINI (Utilisation forcée de gemini-3.6-flash)
   const callGeminiEngine = async () => {
     if (!apiKey) {
       alert("Veuillez renseigner votre clé API Gemini.");
@@ -160,7 +152,7 @@ Formate STRICTEMENT en JSON :
   "days": [
     {
       "day": "Lundi",
-      "sport": { "type": "Nom sport", "duration": "Durée", "intensity": "Haute/Moyenne", "notes": "Conseil" },
+      "sport": { "type": "Nom sport ou Repos", "duration": "Durée ou -", "intensity": "Haute/Moyenne/Repos", "notes": "Conseil" },
       "meal": {
         "name": "Nom du plat principal",
         "userPortion": "Portion utilisateur principal",
@@ -485,27 +477,43 @@ Formate STRICTEMENT en JSON :
                   {weeklyPlan.days?.map((d, idx) => (
                     <div key={idx} className="p-4 border border-slate-100 rounded-xl bg-slate-50/50 space-y-3">
                       <h3 className="font-bold text-slate-900 text-sm">{d.day}</h3>
-                      <div className="p-3 bg-orange-50 border border-orange-100 rounded-xl text-xs space-y-1">
-                        <div className="flex justify-between font-bold text-orange-800">
-                          <span className="flex items-center gap-1"><Dumbbell size={14}/> {d.sport.type} ({d.sport.duration})</span>
-                          <span className="bg-orange-200 px-2 py-0.5 rounded-full text-[10px]">{d.sport.intensity}</span>
+                      
+                      {/* VIGNETTE SPORT SÉCURISÉE */}
+                      {d.sport && (
+                        <div className="p-3 bg-orange-50 border border-orange-100 rounded-xl text-xs space-y-1">
+                          <div className="flex justify-between font-bold text-orange-800">
+                            <span className="flex items-center gap-1">
+                              <Dumbbell size={14}/> {d.sport.type || "Activité"} ({d.sport.duration || "-"})
+                            </span>
+                            <span className="bg-orange-200 px-2 py-0.5 rounded-full text-[10px]">
+                              {d.sport.intensity || "Normale"}
+                            </span>
+                          </div>
+                          <p className="text-slate-600">{d.sport.notes || d.sport.advice || "Séance adaptée à votre planning."}</p>
                         </div>
-                        <p className="text-slate-600">{d.sport.notes || d.sport.advice}</p>
-                      </div>
-                      <div className="p-3 bg-white border border-slate-200 rounded-xl text-xs space-y-2">
-                        <div className="font-bold text-slate-800 flex items-center gap-1">
-                          <Utensils size={14} className="text-emerald-600"/> Dîner : {d.meal.name}
+                      )}
+
+                      {/* VIGNETTE REPAS SÉCURISÉE */}
+                      {d.meal && (
+                        <div className="p-3 bg-white border border-slate-200 rounded-xl text-xs space-y-2">
+                          <div className="font-bold text-slate-800 flex items-center gap-1">
+                            <Utensils size={14} className="text-emerald-600"/> Dîner : {d.meal.name || "Plat équilibré"}
+                          </div>
+                          <p className="text-slate-700"><strong>Portion principale :</strong> {d.meal.userPortion || "Portion standard"}</p>
+                          
+                          {d.meal.familyAdjustments && d.meal.familyAdjustments.length > 0 && (
+                            <div className="pt-2 border-t space-y-1">
+                              <span className="font-bold text-indigo-600 text-[10px] uppercase">Ajustements Foyer :</span>
+                              {d.meal.familyAdjustments.map((adj, aIdx) => (
+                                <p key={aIdx} className="text-slate-600 pl-2 border-l-2 border-indigo-300">
+                                  <strong>{adj.member} :</strong> {adj.note}
+                                </p>
+                              ))}
+                            </div>
+                          )}
                         </div>
-                        <p className="text-slate-700"><strong>Portion principale :</strong> {d.meal.userPortion}</p>
-                        <div className="pt-2 border-t space-y-1">
-                          <span className="font-bold text-indigo-600 text-[10px] uppercase">Ajustements Foyer :</span>
-                          {d.meal.familyAdjustments?.map((adj, aIdx) => (
-                            <p key={aIdx} className="text-slate-600 pl-2 border-l-2 border-indigo-300">
-                              <strong>{adj.member} :</strong> {adj.note}
-                            </p>
-                          ))}
-                        </div>
-                      </div>
+                      )}
+
                     </div>
                   ))}
                 </div>
