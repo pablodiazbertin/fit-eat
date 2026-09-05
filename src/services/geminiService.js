@@ -14,7 +14,7 @@ export const generateWeeklyPlan = async ({ apiKey, family, goals, inventory, spo
     generationConfig: { responseMimeType: "application/json" }
   });
 
- const promptSystem = `
+  const promptSystem = `
 Tu es un coach expert en nutrition, entraînement physique et organisation familiale.
 Génère ou adapte le programme complet de la semaine.
 
@@ -54,3 +54,23 @@ Formate ta réponse STRICTEMENT sous cette structure JSON :
   "groceryList": ["Ingrédient 1", "Ingrédient 2"]
 }
   `;
+
+  let result;
+  if (mealPhoto) {
+    const base64Data = mealPhoto.split(',')[1];
+    const imagePart = { inlineData: { data: base64Data, mimeType: "image/jpeg" } };
+    result = await model.generateContent([promptSystem, imagePart]);
+  } else {
+    result = await model.generateContent(promptSystem);
+  }
+
+  const responseText = await result.response.text();
+  
+  // Nettoyage de sécurité au cas où des balises markdown entourent le JSON
+  let cleanText = responseText.trim();
+  if (cleanText.startsWith("```")) {
+    cleanText = cleanText.replace(/^```json/i, "").replace(/^```/, "").replace(/```$/, "").trim();
+  }
+
+  return JSON.parse(cleanText);
+};
