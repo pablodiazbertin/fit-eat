@@ -1,12 +1,7 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
-/**
- * Service d'appel à l'API Google Gemini 3.6-flash
- */
 export const generateWeeklyPlan = async ({ apiKey, family, goals, inventory, sportCatalog, chatInput, mealPhoto }) => {
-  if (!apiKey || !apiKey.trim()) {
-    throw new Error("Clé API manquante ou invalide");
-  }
+  if (!apiKey || !apiKey.trim()) throw new Error("Clé API manquante ou invalide");
 
   const genAI = new GoogleGenerativeAI(apiKey.trim());
   const model = genAI.getGenerativeModel({ 
@@ -16,61 +11,48 @@ export const generateWeeklyPlan = async ({ apiKey, family, goals, inventory, spo
 
   const promptSystem = `
 Tu es un coach expert en nutrition, entraînement physique et organisation familiale.
-Génère ou adapte le programme complet de la semaine.
+Génère ou adapte le programme pour 7 jours. 
+
+RÈGLE D'OR : TU DOIS CONSTRUIRE LES REPAS EN PRIORITÉ AVEC LES STOCKS D'ALIMENTS DISPONIBLES CI-DESSOUS.
 
 FAMILLE & MEMBRES :
-${family && family.length > 0 
-  ? family.map(m => `- ${m.name} (${m.role}, ${m.age} ans) | Objectif:${goals[m.id]?.type || 'N/A'} (${goals[m.id]?.target || ''}) | Notes:${m.notes || ''}`).join('\n')
-  : 'Aucun membre renseigné'}
+${family && family.length > 0 ? family.map(m => `- ${m.name} (${m.role}, ${m.age} ans) | Objectif:${goals[m.id]?.type || 'N/A'} | Notes:${m.notes || ''}`).join('\n') : 'Aucun membre'}
 
 STOCKS D'ALIMENTS DISPONIBLES :
 ${inventory || 'Aucun stock renseigné'}
 
 CATALOGUE DE SPORTS DISPONIBLES :
-${sportCatalog && sportCatalog.length > 0 
-  ? sportCatalog.map(s => `- ${s.name} (${s.category}, ${s.defaultDuration}) :${s.notes || ''}`).join('\n')
-  : 'Aucun sport renseigné'}
+${sportCatalog && sportCatalog.length > 0 ? sportCatalog.map(s => `- ${s.name} (${s.defaultDuration})`).join('\n') : 'Aucun sport'}
 
 INSTRUCTIONS UTILISATEUR :
-${chatInput ? chatInput : "Génère le programme de la semaine."}
-${mealPhoto ? "NOTE: Une photo de repas consommé a été envoyée. Adapte les repas suivants." : ""}
+${chatInput ? chatInput : "Génère le programme de la semaine à partir d'aujourd'hui."}
+${mealPhoto ? "NOTE: Une photo d'un écart/repas a été envoyée. Adapte la suite du programme." : ""}
 
 Formate ta réponse STRICTEMENT sous cette structure JSON :
 {
-  "summary": "Synthèse de la stratégie globale",
+  "summary": "Synthèse de la stratégie (ex: 'Utilisation des stocks de poulet, focus cardio')",
   "days": [
     {
-      "day": "Lundi",
-      "sport": { "type": "Nom sport ou Repos", "duration": "Durée ou -", "intensity": "Haute/Moyenne/Repos", "notes": "Conseil" },
-      "meal": {
-        "name": "Nom du plat principal",
-        "userPortion": "Portion utilisateur principal",
-        "familyAdjustments": [
-          { "member": "Nom membre", "note": "Déclinaison spécifique" }
-        ]
-      }
+      "dateString": "JJ/MM",
+      "dayName": "NomDuJour",
+      "breakfast": { "name": "Plat", "portion": "Portion principale", "family": [{"member": "Nom", "note": "Ajustement"}] },
+      "lunch": { "name": "Plat", "portion": "Portion principale", "family": [] },
+      "dinner": { "name": "Plat", "portion": "Portion principale", "family": [] },
+      "sports": [
+        { "user": "Nom utilisateur 1", "name": "Nom sport ou Repos", "duration": "Durée", "intensity": "Intensité" }
+      ]
     }
   ],
-  "groceryList": ["Ingrédient 1", "Ingrédient 2"]
+  "groceryList": ["Ingrédient manquant 1", "Ingrédient manquant 2"]
 }
   `;
 
-  let result;
-  if (mealPhoto) {
-    const base64Data = mealPhoto.split(',')[1];
-    const imagePart = { inlineData: { data: base64Data, mimeType: "image/jpeg" } };
-    result = await model.generateContent([promptSystem, imagePart]);
-  } else {
-    result = await model.generateContent(promptSystem);
-  }
+  let result = mealPhoto 
+    ? await model.generateContent([promptSystem, { inlineData: { data: mealPhoto.split(',')[1], mimeType: "image/jpeg" } }])
+    : await model.generateContent(promptSystem);
 
-  const responseText = await result.response.text();
+  let cleanText = (await result.response.text()).trim();
+  if (cleanText.startsWith("```")) cleanText = cleanText.replace(/^```json/i, "").replace(/^```/, "").replace(/```$/, "").trim();
   
-  // Nettoyage de sécurité au cas où des balises markdown entourent le JSON
-  let cleanText = responseText.trim();
-  if (cleanText.startsWith("```")) {
-    cleanText = cleanText.replace(/^```json/i, "").replace(/^```/, "").replace(/```$/, "").trim();
-  }
-
   return JSON.parse(cleanText);
 };
