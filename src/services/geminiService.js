@@ -20,7 +20,7 @@ Génère ou adapte le programme complet de la semaine.
 
 FAMILLE & MEMBRES :
 ${family && family.length > 0 
-  ? family.map(m => `- ${m.name} (${m.role}, ${m.age} ans) \vert{} Objectif:${goals[m.id]?.type || 'N/A'} (${goals[m.id]?.target \vert{}\vert{} ''}) \vert{} Notes:${m.notes || ''}`).join('\n')
+  ? family.map(m => \- ${m.name} (${m.role}, ${m.age} ans) \vert{} Objectif:${goals[m.id]?.type || 'N/A'} (${goals[m.id]?.target \vert{}\vert{} ''}) \vert{} Notes:${m.notes || ''}`).join('\n')`
   : 'Aucun membre renseigné'}
 
 STOCKS D'ALIMENTS DISPONIBLES :
