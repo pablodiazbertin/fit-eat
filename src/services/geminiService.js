@@ -1,6 +1,5 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
-// Fonction 1 : Génération ou Re-génération Globale
 export const generateWeeklyPlan = async ({ apiKey, family, goals, inventory, sportCatalog, chatInput, mealPhoto, existingPlan }) => {
   if (!apiKey || !apiKey.trim()) throw new Error("Clé API manquante ou invalide");
 
@@ -13,35 +12,35 @@ export const generateWeeklyPlan = async ({ apiKey, family, goals, inventory, spo
 Tu es un coach expert en nutrition et sport. 
 DATE D'AUJOURD'HUI : ${todayStr}. 
 
-RÈGLES D'OR ABSOLUES :
-1. RESPECT DU PASSÉ : Si un plan existant est fourni, NE MODIFIE JAMAIS les jours antérieurs à aujourd'hui. 
-2. SPORT : Tu DOIS IMPÉRATIVEMENT respecter les consignes de durée ou d'équipement (ex: cordes lestées) demandées par l'utilisateur et les détailler dans le champ "program".
-3. STOCKS : Utilise les stocks disponibles.
-4. RESTAURANT : Si l'utilisateur mange dehors, nomme le plat "Restaurant" ou "Repas extérieur" et laisse la recette vide.
+RÈGLES D'OR :
+1. RESPECT DU PASSÉ : Si un plan existant est fourni, NE MODIFIE JAMAIS les jours antérieurs à aujourd'hui.
+2. REPAS EXTÉRIEUR : Si l'utilisateur mange hors domicile (restaurant, amis, parents) sans menu précis, définis "isOutside": true, vide la recette et la portion.
+3. SPORT : Précise TOUJOURS la "duration" (durée totale) et respecte le matériel demandé dans "program".
+4. PÉDAGOGIE : Explique tes choix de conception dans le "summary".
 
 INSTRUCTIONS UTILISATEUR :
-${chatInput ? chatInput : "Génère le programme de la semaine à partir d'aujourd'hui."}
+${chatInput ? chatInput : "Génère le programme à partir d'aujourd'hui."}
 
-PLAN EXISTANT (à mettre à jour à partir d'aujourd'hui uniquement si pertinent) :
+PLAN EXISTANT :
 ${existingPlan ? JSON.stringify(existingPlan) : "Aucun"}
 
 STOCKS : ${inventory || 'Aucun'}
 SPORTS DISPOS : ${sportCatalog && sportCatalog.length > 0 ? sportCatalog.map(s => `- ${s.name} (${s.defaultDuration})`).join('\n') : 'Aucun'}
 
-Formate ta réponse STRICTEMENT sous cette structure JSON (Même format pour la semaine complète) :
+Formate ta réponse STRICTEMENT sous cette structure JSON :
 {
-  "summary": { "week": "Vision globale", "today": "Focus aujourd'hui" },
+  "summary": { "week": "Vision globale", "today": "Focus aujourd'hui avec explication des choix" },
   "days": [
     {
       "dateString": "JJ/MM",
       "dayName": "NomDuJour",
-      "breakfast": { "name": "Plat", "portion": "Portion", "recipe": "Instructions", "family": [] },
-      "lunch": { "name": "Plat", "portion": "Portion", "recipe": "Instructions", "family": [] },
-      "dinner": { "name": "Plat", "portion": "Portion", "recipe": "Instructions", "family": [] },
-      "sports": [{ "user": "Nom", "name": "Nom sport", "duration": "Durée", "intensity": "Intensité", "program": "Détail séance" }]
+      "breakfast": { "name": "Plat", "portion": "Portion", "recipe": "Instructions", "isOutside": false, "family": [] },
+      "lunch": { "name": "Plat", "portion": "Portion", "recipe": "Instructions", "isOutside": false, "family": [] },
+      "dinner": { "name": "Plat", "portion": "Portion", "recipe": "Instructions", "isOutside": false, "family": [] },
+      "sports": [{ "user": "Nom", "name": "Nom sport", "duration": "Durée totale", "intensity": "Intensité", "program": "Détail séance" }]
     }
   ],
-  "groceryList": ["Ingrédient manquant"]
+  "groceryList": ["Ingrédient"]
 }
   `;
 
@@ -54,28 +53,34 @@ Formate ta réponse STRICTEMENT sous cette structure JSON (Même format pour la 
   return JSON.parse(cleanText);
 };
 
-// Fonction 2 : Adaptation Unitaire Locale (Mini-chat)
-export const adaptSingleItem = async ({ apiKey, item, itemType, userInput, inventory, family }) => {
+export const adaptSingleItem = async ({ apiKey, item, itemType, userInput, inventory }) => {
   if (!apiKey || !apiKey.trim()) throw new Error("Clé API manquante ou invalide");
   const genAI = new GoogleGenerativeAI(apiKey.trim());
   const model = genAI.getGenerativeModel({ model: "gemini-3.6-flash", generationConfig: { responseMimeType: "application/json" } });
 
   const promptSystem = `
-Tu es un assistant d'adaptation à la volée. 
-L'utilisateur veut modifier un SEUL élément : un ${itemType === 'sport' ? 'entraînement sportif' : 'repas'}.
+Tu es un assistant JSON strict. Tu adaptes un SEUL élément (${itemType === 'sport' ? 'sport' : 'repas'}).
+Tu NE DOIS RENVOYER QUE DU JSON VALIDE. AUCUN TEXTE AVANT OU APRÈS.
 
-ÉLÉMENT ACTUEL :
-${JSON.stringify(item)}
-
-DEMANDE DE L'UTILISATEUR :
-"${userInput}"
+ÉLÉMENT ACTUEL : ${JSON.stringify(item)}
+DEMANDE : "${userInput}"
+STOCKS : ${inventory}
 
 RÈGLES :
-- Si l'utilisateur signale aller au restaurant, nomme le plat "Restaurant" et vide la recette.
-- Si c'est du sport et qu'il mentionne un temps réduit ou un équipement, modifie la durée et le "program" en conséquence.
-- STOCKS : ${inventory}
+1. Si la demande implique un repas à l'extérieur (resto, amis), mets "isOutside": true, "name": "Restaurant / Extérieur", vide la recette et la portion, et précise dans "rationale" qu'il faudra déclarer le contenu plus tard.
+2. Si c'est un écart calorique ou un changement justifiant d'adapter le reste de la semaine, mets "impactsFuture": true. Sinon false.
+3. Remplis "rationale" avec une explication de coach (ex: "J'ai remplacé par X car Y.").
 
-Renvoie UNIQUEMENT l'objet JSON modifié correspondant à cet élément, avec la même structure que l'élément actuel.
+FORMAT JSON ATTENDU :
+{
+  "item": { 
+    // Reprendre la structure exacte de l'élément fourni avec tes modifications
+    "name": "...", "portion": "...", "recipe": "...", "isOutside": boolean, 
+    // Si c'est du sport, inclure "duration", "program", "intensity"
+  },
+  "rationale": "Explication de ton choix",
+  "impactsFuture": boolean
+}
   `;
 
   let result = await model.generateContent(promptSystem);
