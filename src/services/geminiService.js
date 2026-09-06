@@ -17,6 +17,7 @@ RÈGLES D'OR :
 2. REPAS EXTÉRIEUR : Si l'utilisateur mange hors domicile (restaurant, amis, parents) sans menu précis, définis "isOutside": true, vide la recette et la portion.
 3. SPORT : Précise TOUJOURS la "duration" (durée totale) et respecte le matériel demandé dans "program".
 4. PÉDAGOGIE : Explique tes choix de conception dans le "summary".
+5. LANGUE : Utilise le français pour les noms des plats et des sports.
 
 INSTRUCTIONS UTILISATEUR :
 ${chatInput ? chatInput : "Génère le programme à partir d'aujourd'hui."}
@@ -53,7 +54,7 @@ Formate ta réponse STRICTEMENT sous cette structure JSON :
   return JSON.parse(cleanText);
 };
 
-export const adaptSingleItem = async ({ apiKey, item, itemType, userInput, inventory }) => {
+export const adaptSingleItem = async ({ apiKey, item, itemType, userInput, inventory, interactionType }) => {
   if (!apiKey || !apiKey.trim()) throw new Error("Clé API manquante ou invalide");
   const genAI = new GoogleGenerativeAI(apiKey.trim());
   const model = genAI.getGenerativeModel({ model: "gemini-3.6-flash", generationConfig: { responseMimeType: "application/json" } });
@@ -66,17 +67,21 @@ Tu NE DOIS RENVOYER QUE DU JSON VALIDE. AUCUN TEXTE AVANT OU APRÈS.
 DEMANDE : "${userInput}"
 STOCKS : ${inventory}
 
+TYPE D'INTERACTION : "${interactionType}"
+- Si "missing" : L'utilisateur signale un ingrédient manquant. Adapte la recette en modifiant le repas LE MOINS POSSIBLE.
+- Si "change" : Changement d'envie ou de plan. S'il signale manger à l'extérieur sans détail, mets "isOutside": true et vide la recette.
+- Si "deviation" : L'utilisateur déclare ce qu'il a réellement mangé/fait. Mets à jour le plat avec ces éléments.
+- Si "sport_modify" : Adaptation d'une séance sportive (durée, matériel...).
+
 RÈGLES :
-1. Si la demande implique un repas à l'extérieur (resto, amis), mets "isOutside": true, "name": "Restaurant / Extérieur", vide la recette et la portion, et précise dans "rationale" qu'il faudra déclarer le contenu plus tard.
-2. Si c'est un écart calorique ou un changement justifiant d'adapter le reste de la semaine, mets "impactsFuture": true. Sinon false.
-3. Remplis "rationale" avec une explication de coach (ex: "J'ai remplacé par X car Y.").
+1. Si c'est un changement majeur impactant le reste de la semaine, mets "impactsFuture": true. Sinon false.
+2. Remplis "rationale" avec une brève explication de coach.
 
 FORMAT JSON ATTENDU :
 {
   "item": { 
-    // Reprendre la structure exacte de l'élément fourni avec tes modifications
     "name": "...", "portion": "...", "recipe": "...", "isOutside": boolean, 
-    // Si c'est du sport, inclure "duration", "program", "intensity"
+    // Pour le sport inclure : "duration", "program", "intensity"
   },
   "rationale": "Explication de ton choix",
   "impactsFuture": boolean
