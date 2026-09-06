@@ -9,7 +9,6 @@ export const generateWeeklyPlan = async ({ apiKey, family, goals, inventory, spo
     generationConfig: { responseMimeType: "application/json" }
   });
 
-  // On récupère la date réelle du système pour l'imposer à Gemini
   const todayStr = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' });
 
   const promptSystem = `
@@ -20,7 +19,7 @@ DATE D'AUJOURD'HUI : ${todayStr}. Le 1er jour du planning DOIT IMPÉRATIVEMENT c
 
 RÈGLES D'OR : 
 1. Construis les repas EN PRIORITÉ avec les stocks d'aliments disponibles ci-dessous.
-2. ADAPTATIONS FAMILLE : S'il y a 1 seul membre au total dans le foyer, le tableau "family" des repas DOIT être vide []. S'il y a plusieurs membres, fournis UNIQUEMENT des indications culinaires concrètes dans "note" (ex: "ajouter 50g de riz", "sans sauce", "portion double"), aucun blabla nutritionnel.
+2. ADAPTATIONS FAMILLE : S'il y a 1 seul membre au total dans le foyer, le tableau "family" des repas DOIT être vide []. S'il y a plusieurs membres, fournis UNIQUEMENT des indications culinaires concrètes dans "note".
 
 FAMILLE & MEMBRES :
 ${family && family.length > 0 ? family.map(m => `- ${m.name} (${m.role}, ${m.age} ans) | Objectif:${goals[m.id]?.type || 'N/A'} | Notes:${m.notes || ''}`).join('\n') : 'Aucun membre'}
@@ -39,17 +38,17 @@ Formate ta réponse STRICTEMENT sous cette structure JSON :
 {
   "summary": {
     "week": "Synthèse de la stratégie de la semaine (gestion des stocks, objectif)",
-    "today": "Focus spécifique sur aujourd'hui (pourquoi ces repas précis, lien avec l'entraînement du jour ou d'hier)"
+    "today": "Focus spécifique sur aujourd'hui (pourquoi ces repas, lien avec l'entraînement)"
   },
   "days": [
     {
       "dateString": "JJ/MM",
       "dayName": "NomDuJour",
-      "breakfast": { "name": "Plat", "portion": "Portion principale", "family": [{"member": "Nom", "note": "Instruction culinaire"}] },
-      "lunch": { "name": "Plat", "portion": "Portion", "family": [] },
-      "dinner": { "name": "Plat", "portion": "Portion", "family": [] },
+      "breakfast": { "name": "Plat", "portion": "Portion", "recipe": "Brèves instructions de préparation", "family": [{"member": "Nom", "note": "Instruction culinaire"}] },
+      "lunch": { "name": "Plat", "portion": "Portion", "recipe": "Brèves instructions de préparation", "family": [] },
+      "dinner": { "name": "Plat", "portion": "Portion", "recipe": "Brèves instructions de préparation", "family": [] },
       "sports": [
-        { "user": "Nom", "name": "Nom sport ou Repos", "duration": "Durée", "intensity": "Intensité" }
+        { "user": "Nom", "name": "Nom sport ou Repos", "duration": "Durée", "intensity": "Intensité", "program": "Détail de la séance (ex: échauffement, 5x3min effort, repos...)" }
       ]
     }
   ],
