@@ -12,7 +12,7 @@ export default function Navigation({ activeTab, setActiveTab, familyCount, sport
   ];
 
   return (
-    <nav className="bg-white border-b border-slate-200 sticky top-0 z-10 shadow-sm">
+    <nav className="bg-white border-b border-slate-200 sticky top-0 z-50 shadow-sm">
       <div className="max-w-6xl mx-auto flex overflow-x-auto text-xs font-bold text-slate-600 no-scrollbar">
         {tabs.map((tab) => {
           const Icon = tab.icon;
