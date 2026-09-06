@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import { 
   ChevronDown, ChevronRight, ChevronLeft, X, Camera, Zap, 
   Footprints, Leaf, Waves, Dumbbell, Activity,
-  MessageSquare, RefreshCw, AlertTriangle, Play, Edit3, CheckCircle, MapPin, CalendarClock
+  MessageSquare, RefreshCw, AlertTriangle, Play, CheckCircle, MapPin, CalendarClock
 } from 'lucide-react';
 import { adaptSingleItem } from '../services/geminiService';
 
@@ -22,7 +22,8 @@ export default function MealsModule({
 }) {
   const [expandedRows, setExpandedRows] = useState({ breakfast: true, lunch: true, dinner: true, sports: true });
   const [selectedItem, setSelectedItem] = useState(null); 
-  const [modalMode, setModalMode] = useState('view'); // view, edit_menu, input_local, loading_local, proposal_local, reschedule_sport
+  // Modes: view, input_local, loading_local, proposal_local, reschedule_sport
+  const [modalMode, setModalMode] = useState('view'); 
   const [interactionType, setInteractionType] = useState('');
   const [userInput, setUserInput] = useState('');
   const [localProposal, setLocalProposal] = useState(null);
@@ -45,10 +46,20 @@ export default function MealsModule({
   const isSport = selectedItem?.itemType === 'sport';
   const isOutside = selectedItem?.isOutside || selectedItem?.name?.toLowerCase().includes('restaurant');
 
-  // --- ACTIONS SPORT DÉTERMINISTES ---
+  // TRADUCTION DES TYPES
+  const mealLabel = selectedItem?.itemType === 'breakfast' ? 'Petit-déjeuner' : 
+                    selectedItem?.itemType === 'lunch' ? 'Déjeuner' : 
+                    selectedItem?.itemType === 'dinner' ? 'Dîner' : 'Activité sportive';
+
+  // ACTIONS SPORT
   const handleCancelSport = () => {
     const newPlan = { ...weeklyPlan };
-    newPlan.days[selectedItem.dayIndex].sports = [{ name: "Repos", duration: "-", intensity: "-", program: "" }];
+    const sportsArr = newPlan.days[selectedItem.dayIndex].sports;
+    if (sportsArr.length > 1) {
+      newPlan.days[selectedItem.dayIndex].sports = sportsArr.filter(s => s.name !== selectedItem.name);
+    } else {
+      newPlan.days[selectedItem.dayIndex].sports = [{ name: "Repos", duration: "-", intensity: "-", program: "" }];
+    }
     setWeeklyPlan(newPlan);
     setSelectedItem(null);
   };
@@ -58,26 +69,32 @@ export default function MealsModule({
     const sportToMove = { ...selectedItem };
     delete sportToMove.dayIndex; delete sportToMove.itemType; delete sportToMove.dayName;
     
-    // Vider le jour actuel
-    newPlan.days[selectedItem.dayIndex].sports = [{ name: "Repos", duration: "-", intensity: "-", program: "" }];
-    // Appliquer au jour cible
+    // Retirer du jour d'origine
+    const originalSports = newPlan.days[selectedItem.dayIndex].sports;
+    if (originalSports.length > 1) {
+      newPlan.days[selectedItem.dayIndex].sports = originalSports.filter(s => s.name !== selectedItem.name);
+    } else {
+      newPlan.days[selectedItem.dayIndex].sports = [{ name: "Repos", duration: "-", intensity: "-", program: "" }];
+    }
+    
+    // Ajouter au jour cible
     if (mode === 'replace' || !newPlan.days[targetIndex].sports || newPlan.days[targetIndex].sports[0].name === "Repos") {
       newPlan.days[targetIndex].sports = [sportToMove];
     } else {
       newPlan.days[targetIndex].sports.push(sportToMove);
     }
     setWeeklyPlan(newPlan);
-    setSelectedItem(null);
+    setSelectedItem(null); // FERMETURE IMMÉDIATE DU POP-UP
   };
 
-  // --- APPEL IA LOCAL ---
+  // APPEL IA LOCAL
   const handleLocalSubmit = async () => {
     setIsLocalLoading(true); setModalMode('loading_local');
     try {
       const proposal = await adaptSingleItem({
         apiKey: localStorage.getItem('gemini_api_key'),
         item: selectedItem, itemType: selectedItem.itemType,
-        userInput, inventory: localStorage.getItem('fe_inventory')
+        userInput, interactionType, inventory: localStorage.getItem('fe_inventory')
       });
       setLocalProposal(proposal);
       setModalMode('proposal_local');
@@ -103,9 +120,17 @@ export default function MealsModule({
     setSelectedItem(null);
     
     if (triggerGlobalReplan) {
-      setChatInput(`Suite à mon écart/changement du ${selectedItem.dayName}, réajuste la suite du planning.`);
+      setChatInput(`Suite à mon changement sur le ${mealLabel} du ${selectedItem.dayName}, réajuste la suite.`);
       setTimeout(() => onGenerate(), 300);
     }
+  };
+
+  const getPlaceholder = () => {
+    if (interactionType === 'sport_modify') return "Ex: Je n'aurai que 10 minutes / Je n'ai pas mes cordes...";
+    if (interactionType === 'missing') return "Ex: Je n'ai plus d'œufs...";
+    if (interactionType === 'change') return "Ex: Je n'ai pas envie de poisson / Finalement au resto...";
+    if (interactionType === 'deviation') return "Ex: J'ai mangé une pizza finalement...";
+    return "";
   };
 
   const summaryWeek = typeof weeklyPlan?.summary === 'string' ? weeklyPlan.summary : weeklyPlan?.summary?.week;
@@ -163,7 +188,7 @@ export default function MealsModule({
                   {['breakfast', 'lunch', 'dinner'].map((mealType) => (
                     <tr key={mealType} className="border-b">
                       <td className="p-3 border-r font-bold text-slate-700 sticky left-0 bg-white z-10 cursor-pointer shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]" onClick={() => toggleRow(mealType)}>
-                        <div className="flex items-center gap-2 capitalize">{expandedRows[mealType] ? <ChevronDown size={14}/> : <ChevronRight size={14}/>} {mealType}</div>
+                        <div className="flex items-center gap-2 capitalize">{expandedRows[mealType] ? <ChevronDown size={14}/> : <ChevronRight size={14}/>} {mealType === 'breakfast' ? 'Petit-déj' : mealType === 'lunch' ? 'Déjeuner' : 'Dîner'}</div>
                       </td>
                       {weeklyPlan.days.map((d, i) => {
                         const meal = d[mealType];
@@ -216,7 +241,7 @@ export default function MealsModule({
         <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden flex flex-col max-h-[90vh]">
             <div className="p-4 border-b flex justify-between items-center bg-slate-50">
-              <h3 className="font-bold text-slate-800">{modalMode === 'reschedule_sport' ? "Reprogrammer" : "Détail / Ajustement"}</h3>
+              <h3 className="font-bold text-slate-800">{modalMode === 'reschedule_sport' ? "Reprogrammer" : `${mealLabel} (${selectedItem.dayName})`}</h3>
               <button onClick={() => setSelectedItem(null)} className="text-slate-400 hover:text-slate-600"><X size={20} /></button>
             </div>
 
@@ -241,56 +266,84 @@ export default function MealsModule({
                     )}
                   </div>
                   
-                  <div className="pt-4 border-t mt-4">
-                    <button onClick={() => setModalMode('edit_menu')} className="w-full flex items-center justify-center gap-2 p-3 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-sm font-bold transition">
-                      <Edit3 size={16} /> Modifier ou Signaler
-                    </button>
+                  {/* LES BOUTONS D'ACTION DIRECTS */}
+                  <div className="pt-4 mt-4 grid grid-cols-1 gap-2 border-t">
+                    
+                    {isSport && selectedItem.name !== "Repos" && (
+                      <div className="grid grid-cols-2 gap-2 mb-2">
+                        <button onClick={handleCancelSport} className="p-3 bg-red-50 text-red-700 font-bold text-sm rounded-xl border border-red-200">Annuler (Repos)</button>
+                        <button onClick={() => setModalMode('reschedule_sport')} className="p-3 bg-orange-50 text-orange-700 font-bold text-sm rounded-xl border border-orange-200 flex items-center justify-center gap-1"><CalendarClock size={16}/> Déplacer</button>
+                      </div>
+                    )}
+                    {isSport && (
+                      <button onClick={() => { setInteractionType('sport_modify'); setModalMode('input_local'); }} className="w-full flex items-center justify-center gap-2 p-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-bold border transition">
+                        <RefreshCw size={16} className="text-blue-500"/> Modifier avec l'IA
+                      </button>
+                    )}
+
+                    {/* REPAS */}
+                    {!isSport && (isToday || isFuture) && !isOutside && (
+                      <button onClick={() => { setInteractionType('missing'); setModalMode('input_local'); }} className="w-full flex items-center gap-3 p-3 bg-slate-50 hover:bg-slate-100 text-slate-700 border rounded-xl text-sm font-bold transition">
+                        <AlertTriangle size={18} className="text-amber-500" /> Ingrédient manquant
+                      </button>
+                    )}
+                    {!isSport && (isToday || isFuture) && (
+                      <button onClick={() => { setInteractionType('change'); setModalMode('input_local'); }} className="w-full flex items-center gap-3 p-3 bg-slate-50 hover:bg-slate-100 text-slate-700 border rounded-xl text-sm font-bold transition">
+                        <RefreshCw size={18} className="text-blue-500" /> Changement d'envie / plan
+                      </button>
+                    )}
+                    {!isSport && (isToday || isPast) && (
+                      <button onClick={() => { setInteractionType('deviation'); setModalMode('input_local'); }} className="w-full flex items-center gap-3 p-3 bg-slate-50 hover:bg-slate-100 text-slate-700 border rounded-xl text-sm font-bold transition">
+                        <Camera size={18} className="text-purple-500" /> Déclarer un écart réalisé
+                      </button>
+                    )}
                   </div>
                 </>
-              )}
-
-              {modalMode === 'edit_menu' && (
-                <div className="space-y-3">
-                  {isSport && selectedItem.name !== "Repos" && (
-                    <div className="grid grid-cols-2 gap-2 mb-4 pb-4 border-b">
-                      <button onClick={handleCancelSport} className="p-3 bg-red-50 text-red-700 font-bold text-sm rounded-xl border border-red-200">Annuler (Repos)</button>
-                      <button onClick={() => setModalMode('reschedule_sport')} className="p-3 bg-orange-50 text-orange-700 font-bold text-sm rounded-xl border border-orange-200 flex items-center justify-center gap-1"><CalendarClock size={16}/> Déplacer</button>
-                    </div>
-                  )}
-                  
-                  <button onClick={() => { setInteractionType('change'); setModalMode('input_local'); }} className="w-full flex items-center gap-3 p-4 bg-slate-50 hover:bg-slate-100 rounded-xl text-left border">
-                    <div className="p-2 bg-blue-100 text-blue-600 rounded-lg"><RefreshCw size={18} /></div>
-                    <div>
-                      <div className="font-bold text-sm">Modification IA (Prévu ou Fait)</div>
-                      <div className="text-xs text-slate-500">Ex: Resto, pas le temps, manque ingrédient...</div>
-                    </div>
-                  </button>
-                </div>
               )}
 
               {modalMode === 'reschedule_sport' && (
                 <div className="space-y-3">
                   <p className="text-sm font-bold text-slate-700 mb-2">Choisir le jour cible :</p>
-                  {weeklyPlan.days.map((d, i) => (
-                    <div key={i} className="flex justify-between items-center p-3 border rounded-xl hover:bg-slate-50">
-                      <span className="font-semibold text-sm">{d.dayName} {d.dateString}</span>
-                      <div className="flex gap-2">
-                        <button onClick={() => handleRescheduleSport(i, 'replace')} className="px-3 py-1 bg-slate-200 text-slate-700 text-xs font-bold rounded-lg hover:bg-slate-300">Remplacer</button>
-                        <button onClick={() => handleRescheduleSport(i, 'add')} className="px-3 py-1 bg-orange-100 text-orange-700 text-xs font-bold rounded-lg hover:bg-orange-200">Ajouter</button>
+                  {weeklyPlan.days.map((d, i) => {
+                    if (i === selectedItem.dayIndex) return null; // Ne pas afficher le jour actuel
+                    const targetSport = d.sports && d.sports[0];
+                    const hasSport = targetSport && targetSport.name !== "Repos";
+                    
+                    return (
+                      <div key={i} className="flex justify-between items-center p-3 border rounded-xl hover:bg-slate-50">
+                        <span className="font-semibold text-sm">{d.dayName} {d.dateString}</span>
+                        <div className="flex gap-2">
+                          {hasSport ? (
+                            <>
+                              <button onClick={() => handleRescheduleSport(i, 'replace')} className="px-3 py-1 bg-slate-200 text-slate-700 text-xs font-bold rounded-lg">Remplacer</button>
+                              <button onClick={() => handleRescheduleSport(i, 'add')} className="px-3 py-1 bg-orange-100 text-orange-700 text-xs font-bold rounded-lg">Ajouter</button>
+                            </>
+                          ) : (
+                            <button onClick={() => handleRescheduleSport(i, 'replace')} className="px-3 py-1 bg-slate-200 text-slate-700 text-xs font-bold rounded-lg">Déplacer</button>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))}
-                  <button onClick={() => setModalMode('edit_menu')} className="w-full mt-2 p-3 text-slate-500 font-bold">Retour</button>
+                    );
+                  })}
+                  <button onClick={() => setModalMode('view')} className="w-full mt-2 p-3 text-slate-500 font-bold">Annuler</button>
                 </div>
               )}
 
               {modalMode === 'input_local' && (
                 <div className="space-y-4">
                   <label className="block text-sm font-bold text-slate-700">Expliquez au coach :</label>
-                  <textarea autoFocus rows={3} className="w-full p-4 border rounded-xl bg-slate-50 outline-none focus:ring-2 focus:ring-emerald-500 text-sm resize-none" value={userInput} onChange={(e) => setUserInput(e.target.value)} />
+                  <textarea autoFocus rows={3} className="w-full p-4 border rounded-xl bg-slate-50 outline-none focus:ring-2 focus:ring-emerald-500 text-sm resize-none" placeholder={getPlaceholder()} value={userInput} onChange={(e) => setUserInput(e.target.value)} />
+                  
+                  {interactionType === 'deviation' && !isSport && (
+                    <label className="flex items-center justify-center gap-2 p-3 bg-purple-50 hover:bg-purple-100 text-purple-700 border rounded-xl text-sm font-bold cursor-pointer">
+                      <Camera size={16} /> {mealPhoto ? "Photo jointe ✓" : "Joindre photo"}
+                      <input type="file" accept="image/*" onChange={onPhotoUpload} className="hidden" />
+                    </label>
+                  )}
+
                   <div className="flex gap-2">
-                    <button onClick={() => setModalMode('edit_menu')} className="flex-1 p-3 bg-slate-100 font-bold rounded-xl text-sm">Retour</button>
-                    <button onClick={handleLocalSubmit} disabled={!userInput} className="flex-[2] p-3 bg-emerald-600 text-white font-bold rounded-xl text-sm">Soumettre à l'IA</button>
+                    <button onClick={() => setModalMode('view')} className="flex-1 p-3 bg-slate-100 font-bold rounded-xl text-sm">Annuler</button>
+                    <button onClick={handleLocalSubmit} disabled={!userInput} className="flex-[2] p-3 bg-emerald-600 text-white font-bold rounded-xl text-sm">Demander à l'IA</button>
                   </div>
                 </div>
               )}
