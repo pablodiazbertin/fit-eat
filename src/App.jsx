@@ -160,6 +160,7 @@ export default function App() {
             onGenerate={handleGenerate}
             loading={loading}
             weeklyPlan={weeklyPlan}
+            setWeeklyPlan={setWeeklyPlan}
           />
         )}
 
