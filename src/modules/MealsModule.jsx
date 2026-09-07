@@ -22,7 +22,6 @@ export default function MealsModule({
 }) {
   const [expandedRows, setExpandedRows] = useState({ breakfast: true, lunch: true, dinner: true, sports: true });
   const [selectedItem, setSelectedItem] = useState(null); 
-  // Modes: view, input_local, loading_local, proposal_local, reschedule_sport
   const [modalMode, setModalMode] = useState('view'); 
   const [interactionType, setInteractionType] = useState('');
   const [userInput, setUserInput] = useState('');
@@ -45,16 +44,18 @@ export default function MealsModule({
   const isFuture = selectedItem?.dayIndex > 0;
   const isSport = selectedItem?.itemType === 'sport';
   const isOutside = selectedItem?.isOutside || selectedItem?.name?.toLowerCase().includes('restaurant');
+  const isAucun = selectedItem?.name?.toLowerCase().includes('aucun');
 
-  // TRADUCTION DES TYPES
   const mealLabel = selectedItem?.itemType === 'breakfast' ? 'Petit-déjeuner' : 
                     selectedItem?.itemType === 'lunch' ? 'Déjeuner' : 
                     selectedItem?.itemType === 'dinner' ? 'Dîner' : 'Activité sportive';
 
   // ACTIONS SPORT
   const handleCancelSport = () => {
-    const newPlan = { ...weeklyPlan };
-    const sportsArr = newPlan.days[selectedItem.dayIndex].sports;
+    const newPlan = { ...weeklyPlan, days: [...weeklyPlan.days] };
+    newPlan.days[selectedItem.dayIndex] = { ...newPlan.days[selectedItem.dayIndex] };
+    
+    const sportsArr = newPlan.days[selectedItem.dayIndex].sports || [];
     if (sportsArr.length > 1) {
       newPlan.days[selectedItem.dayIndex].sports = sportsArr.filter(s => s.name !== selectedItem.name);
     } else {
@@ -65,26 +66,29 @@ export default function MealsModule({
   };
 
   const handleRescheduleSport = (targetIndex, mode) => {
-    const newPlan = { ...weeklyPlan };
+    const newPlan = { ...weeklyPlan, days: [...weeklyPlan.days] };
+    newPlan.days[selectedItem.dayIndex] = { ...newPlan.days[selectedItem.dayIndex] };
+    newPlan.days[targetIndex] = { ...newPlan.days[targetIndex] };
+    
     const sportToMove = { ...selectedItem };
     delete sportToMove.dayIndex; delete sportToMove.itemType; delete sportToMove.dayName;
     
-    // Retirer du jour d'origine
-    const originalSports = newPlan.days[selectedItem.dayIndex].sports;
+    const originalSports = newPlan.days[selectedItem.dayIndex].sports || [];
     if (originalSports.length > 1) {
       newPlan.days[selectedItem.dayIndex].sports = originalSports.filter(s => s.name !== selectedItem.name);
     } else {
       newPlan.days[selectedItem.dayIndex].sports = [{ name: "Repos", duration: "-", intensity: "-", program: "" }];
     }
     
-    // Ajouter au jour cible
-    if (mode === 'replace' || !newPlan.days[targetIndex].sports || newPlan.days[targetIndex].sports[0].name === "Repos") {
+    const targetSports = newPlan.days[targetIndex].sports || [];
+    if (mode === 'replace' || targetSports.length === 0 || targetSports[0].name === "Repos") {
       newPlan.days[targetIndex].sports = [sportToMove];
     } else {
-      newPlan.days[targetIndex].sports.push(sportToMove);
+      newPlan.days[targetIndex].sports = [...targetSports, sportToMove];
     }
+    
     setWeeklyPlan(newPlan);
-    setSelectedItem(null); // FERMETURE IMMÉDIATE DU POP-UP
+    setSelectedItem(null); 
   };
 
   // APPEL IA LOCAL
@@ -99,7 +103,7 @@ export default function MealsModule({
       setLocalProposal(proposal);
       setModalMode('proposal_local');
     } catch (err) {
-      alert("Erreur de format depuis l'IA. Essayez une consigne plus courte.");
+      alert("Erreur technique (connexion ou format IA). Veuillez réessayer.");
       setModalMode('input_local');
     } finally {
       setIsLocalLoading(false);
@@ -107,15 +111,19 @@ export default function MealsModule({
   };
 
   const acceptLocalProposal = (triggerGlobalReplan) => {
-    const updatedPlan = { ...weeklyPlan };
+    const updatedPlan = { ...weeklyPlan, days: [...weeklyPlan.days] };
+    updatedPlan.days[selectedItem.dayIndex] = { ...updatedPlan.days[selectedItem.dayIndex] };
+
     if (isSport) {
-      const sportsArr = updatedPlan.days[selectedItem.dayIndex].sports;
+      const sportsArr = [...updatedPlan.days[selectedItem.dayIndex].sports];
       const targetIdx = sportsArr.findIndex(s => s.name === selectedItem.name);
       if(targetIdx >= 0) sportsArr[targetIdx] = localProposal.item;
       else sportsArr[0] = localProposal.item;
+      updatedPlan.days[selectedItem.dayIndex].sports = sportsArr;
     } else {
       updatedPlan.days[selectedItem.dayIndex][selectedItem.itemType] = localProposal.item;
     }
+    
     setWeeklyPlan(updatedPlan);
     setSelectedItem(null);
     
@@ -211,10 +219,13 @@ export default function MealsModule({
                     <td className="p-3 border-r font-bold text-orange-700 sticky left-0 bg-white z-10 cursor-pointer" onClick={() => toggleRow('sports')}>
                       <div className="flex items-center gap-2">{expandedRows.sports ? <ChevronDown size={14}/> : <ChevronRight size={14}/>} Activité</div>
                     </td>
-                    {weeklyPlan.days.map((d, i) => (
-                      expandedRows.sports ? (
+                    {weeklyPlan.days.map((d, i) => {
+                      // Forcer l'injection d'un objet "Repos" s'il n'y a pas de sport du tout
+                      const daySports = d.sports && d.sports.length > 0 ? d.sports : [{ name: "Repos", duration: "-", intensity: "-", program: "" }];
+                      
+                      return expandedRows.sports ? (
                         <td key={i} className={`p-2 border-r align-top ${i === 0 ? 'bg-indigo-50/30' : ''}`}>
-                          {d.sports.map((sport, sIdx) => {
+                          {daySports.map((sport, sIdx) => {
                             const Icon = sport.name !== "Repos" ? getSportIcon(sport.name) : Zap;
                             return sport.name !== "Repos" ? (
                               <div key={sIdx} onClick={() => openModal(sport, i, 'sport', d.dayName)} className="p-2 mb-1 bg-orange-50 border border-orange-200 rounded-xl cursor-pointer hover:bg-orange-100 transition">
@@ -227,7 +238,7 @@ export default function MealsModule({
                           })}
                         </td>
                       ) : <td key={i} className="border-r"></td>
-                    ))}
+                    })}
                   </tr>
                 </tbody>
               </table>
@@ -266,9 +277,7 @@ export default function MealsModule({
                     )}
                   </div>
                   
-                  {/* LES BOUTONS D'ACTION DIRECTS */}
                   <div className="pt-4 mt-4 grid grid-cols-1 gap-2 border-t">
-                    
                     {isSport && selectedItem.name !== "Repos" && (
                       <div className="grid grid-cols-2 gap-2 mb-2">
                         <button onClick={handleCancelSport} className="p-3 bg-red-50 text-red-700 font-bold text-sm rounded-xl border border-red-200">Annuler (Repos)</button>
@@ -281,8 +290,7 @@ export default function MealsModule({
                       </button>
                     )}
 
-                    {/* REPAS */}
-                    {!isSport && (isToday || isFuture) && !isOutside && (
+                    {!isSport && (isToday || isFuture) && !isOutside && !isAucun && (
                       <button onClick={() => { setInteractionType('missing'); setModalMode('input_local'); }} className="w-full flex items-center gap-3 p-3 bg-slate-50 hover:bg-slate-100 text-slate-700 border rounded-xl text-sm font-bold transition">
                         <AlertTriangle size={18} className="text-amber-500" /> Ingrédient manquant
                       </button>
@@ -305,7 +313,7 @@ export default function MealsModule({
                 <div className="space-y-3">
                   <p className="text-sm font-bold text-slate-700 mb-2">Choisir le jour cible :</p>
                   {weeklyPlan.days.map((d, i) => {
-                    if (i === selectedItem.dayIndex) return null; // Ne pas afficher le jour actuel
+                    if (i === selectedItem.dayIndex) return null; 
                     const targetSport = d.sports && d.sports[0];
                     const hasSport = targetSport && targetSport.name !== "Repos";
                     
