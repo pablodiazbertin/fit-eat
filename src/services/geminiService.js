@@ -50,8 +50,9 @@ Formate ta réponse STRICTEMENT sous cette structure JSON :
     : await model.generateContent(promptSystem);
 
   let cleanText = (await result.response.text()).trim();
-  if (cleanText.startsWith("```")) cleanText = cleanText.replace(/^```json/i, "").replace(/^```/, "").replace(/```$/, "").trim();
-  return JSON.parse(cleanText);
+  const jsonMatch = cleanText.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) throw new Error("Format JSON introuvable dans la réponse.");
+  return JSON.parse(jsonMatch[0]);
 };
 
 export const adaptSingleItem = async ({ apiKey, item, itemType, userInput, inventory, interactionType }) => {
@@ -90,6 +91,7 @@ FORMAT JSON ATTENDU :
 
   let result = await model.generateContent(promptSystem);
   let cleanText = (await result.response.text()).trim();
-  if (cleanText.startsWith("```")) cleanText = cleanText.replace(/^```json/i, "").replace(/^```/, "").replace(/```$/, "").trim();
-  return JSON.parse(cleanText);
+  const jsonMatch = cleanText.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) throw new Error("Format JSON introuvable dans la réponse.");
+  return JSON.parse(jsonMatch[0]);
 };
