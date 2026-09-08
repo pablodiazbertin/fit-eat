@@ -32,8 +32,9 @@ export default function MealsModule({
   const toggleRow = (row) => setExpandedRows(prev => ({ ...prev, [row]: !prev[row] }));
   const scrollTable = (dir) => scrollRef.current?.scrollBy({ left: dir === 'left' ? -300 : 300, behavior: 'smooth' });
 
-  const openModal = (item, dayIndex, type, dayName) => {
-    setSelectedItem({ ...item, dayIndex, itemType: type, dayName });
+  // CORRECTION : On capture l'index exact (itemIndex) pour éviter les doublons de noms
+  const openModal = (item, dayIndex, type, dayName, itemIndex = 0) => {
+    setSelectedItem({ ...item, dayIndex, itemType: type, dayName, itemIndex });
     setModalMode('view');
     setUserInput('');
     setLocalProposal(null);
@@ -50,14 +51,14 @@ export default function MealsModule({
                     selectedItem?.itemType === 'lunch' ? 'Déjeuner' : 
                     selectedItem?.itemType === 'dinner' ? 'Dîner' : 'Activité sportive';
 
-  // ACTIONS SPORT
+  // --- ACTIONS SPORT CORRIGÉES (Ciblage par Index) ---
   const handleCancelSport = () => {
     const newPlan = { ...weeklyPlan, days: [...weeklyPlan.days] };
     newPlan.days[selectedItem.dayIndex] = { ...newPlan.days[selectedItem.dayIndex] };
     
     const sportsArr = newPlan.days[selectedItem.dayIndex].sports || [];
     if (sportsArr.length > 1) {
-      newPlan.days[selectedItem.dayIndex].sports = sportsArr.filter(s => s.name !== selectedItem.name);
+      newPlan.days[selectedItem.dayIndex].sports = sportsArr.filter((_, idx) => idx !== selectedItem.itemIndex);
     } else {
       newPlan.days[selectedItem.dayIndex].sports = [{ name: "Repos", duration: "-", intensity: "-", program: "" }];
     }
@@ -71,11 +72,11 @@ export default function MealsModule({
     newPlan.days[targetIndex] = { ...newPlan.days[targetIndex] };
     
     const sportToMove = { ...selectedItem };
-    delete sportToMove.dayIndex; delete sportToMove.itemType; delete sportToMove.dayName;
+    delete sportToMove.dayIndex; delete sportToMove.itemType; delete sportToMove.dayName; delete sportToMove.itemIndex;
     
     const originalSports = newPlan.days[selectedItem.dayIndex].sports || [];
     if (originalSports.length > 1) {
-      newPlan.days[selectedItem.dayIndex].sports = originalSports.filter(s => s.name !== selectedItem.name);
+      newPlan.days[selectedItem.dayIndex].sports = originalSports.filter((_, idx) => idx !== selectedItem.itemIndex);
     } else {
       newPlan.days[selectedItem.dayIndex].sports = [{ name: "Repos", duration: "-", intensity: "-", program: "" }];
     }
@@ -91,7 +92,6 @@ export default function MealsModule({
     setSelectedItem(null); 
   };
 
-  // APPEL IA LOCAL
   const handleLocalSubmit = async () => {
     setIsLocalLoading(true); setModalMode('loading_local');
     try {
@@ -116,8 +116,8 @@ export default function MealsModule({
 
     if (isSport) {
       const sportsArr = [...updatedPlan.days[selectedItem.dayIndex].sports];
-      const targetIdx = sportsArr.findIndex(s => s.name === selectedItem.name);
-      if(targetIdx >= 0) sportsArr[targetIdx] = localProposal.item;
+      const targetIdx = selectedItem.itemIndex; // CORRECTION : Utilisation de l'index
+      if(targetIdx >= 0 && targetIdx < sportsArr.length) sportsArr[targetIdx] = localProposal.item;
       else sportsArr[0] = localProposal.item;
       updatedPlan.days[selectedItem.dayIndex].sports = sportsArr;
     } else {
@@ -220,7 +220,6 @@ export default function MealsModule({
                       <div className="flex items-center gap-2">{expandedRows.sports ? <ChevronDown size={14}/> : <ChevronRight size={14}/>} Activité</div>
                     </td>
                     {weeklyPlan.days.map((d, i) => {
-                      // Forcer l'injection d'un objet "Repos" s'il n'y a pas de sport du tout
                       const daySports = d.sports && d.sports.length > 0 ? d.sports : [{ name: "Repos", duration: "-", intensity: "-", program: "" }];
                       
                       return expandedRows.sports ? (
@@ -228,12 +227,12 @@ export default function MealsModule({
                           {daySports.map((sport, sIdx) => {
                             const Icon = sport.name !== "Repos" ? getSportIcon(sport.name) : Zap;
                             return sport.name !== "Repos" ? (
-                              <div key={sIdx} onClick={() => openModal(sport, i, 'sport', d.dayName)} className="p-2 mb-1 bg-orange-50 border border-orange-200 rounded-xl cursor-pointer hover:bg-orange-100 transition">
+                              <div key={sIdx} onClick={() => openModal(sport, i, 'sport', d.dayName, sIdx)} className="p-2 mb-1 bg-orange-50 border border-orange-200 rounded-xl cursor-pointer hover:bg-orange-100 transition">
                                 <div className="font-bold text-orange-900 flex items-center gap-1"><Icon size={12} className="text-orange-600"/> {sport.name}</div>
                                 {sport.duration && <div className="text-[10px] text-orange-700 mt-1">{sport.duration}</div>}
                               </div>
                             ) : (
-                              <div key={sIdx} onClick={() => openModal({name: "Repos"}, i, 'sport', d.dayName)} className="p-2 text-center text-[10px] text-slate-400 cursor-pointer hover:bg-slate-50 rounded-xl border border-dashed transition">Repos</div>
+                              <div key={sIdx} onClick={() => openModal({name: "Repos"}, i, 'sport', d.dayName, sIdx)} className="p-2 text-center text-[10px] text-slate-400 cursor-pointer hover:bg-slate-50 rounded-xl border border-dashed transition">Repos</div>
                             )
                           })}
                         </td>
